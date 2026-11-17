@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Currency {
+  USD
+  EUR
+  GBP
+  CAD
+  JPY
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum AccountKind {
+  CHECKING
+  SAVINGS
+  BUSINESS
+}
+
+enum TransferStatus {
+  PENDING
+  IN_REVIEW
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum EntryDirection {
+  DEBIT
+  CREDIT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum CardType {
+  VIRTUAL
+  PHYSICAL
+}
+
+enum CardStatus {
+  INACTIVE
+  ACTIVE
+  FROZEN
+  CANCELLED
+}
+
+enum FraudAction {
+  ALLOW
+  REVIEW
+  BLOCK
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  WEBHOOK
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  fullName      String
+  passwordHash  String
+  kycVerified   Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  accounts      Account[]
+  invoices      Invoice[]
+  notifications Notification[]
+  apiKeys       ApiKey[]
+
+  @@map("users")
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  ownerId      String
+  owner        User          @relation(fields: [ownerId], references: [id])
+  name         String
+  kind         AccountKind   @default(CHECKING)
+  currency     Currency
+  status       AccountStatus @default(PENDING)
+  balanceMinor BigInt        @default(0)
+  holdMinor    BigInt        @default(0)
+  iban         String?       @unique
+  closedAt     DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  outgoing Transfer[]    @relation("TransferSource")
+  incoming Transfer[]    @relation("TransferDestination")
+  entries  LedgerEntry[]
+  cards    Card[]
+
+  @@index([ownerId])
+  @@map("accounts")
+}
+
+model Transfer {
+  id                   String         @id @default(uuid())
+  idempotencyKey       String         @unique
+  sourceAccountId      String
+  destinationAccountId String
+  source               Account        @relation("TransferSource", fields: [sourceAccountId], references: [id])
+  destination          Account        @relation("TransferDestination", fields: [destinationAccountId], references: [id])
+  amountMinor          BigInt
+  currency             Currency
+  memo                 String?
+  status               TransferStatus @default(PENDING)
+  createdAt            DateTime       @default(now())
+  completedAt          DateTime?
+  fraudCheck           FraudCheck?
+
+  @@index([sourceAccountId, createdAt])
+  @@map("transfers")
+}
+
+model LedgerTransaction {
+  id          String        @id @default(uuid())
+  reference   String        @unique
+  description String        @default("")
+  createdAt   DateTime      @default(now())
+  entries     LedgerEntry[]
+
+  @@map("ledger_transactions")
+}
+
+model LedgerEntry {
+  id                String            @id @default(uuid())
+  transactionId     String
+  transaction       LedgerTransaction @relation(fields: [transactionId], references: [id])
+  accountId         String
+  account           Account           @relation(fields: [accountId], references: [id])
+  direction         EntryDirection
+  amountMinor       BigInt
+  currency          Currency
+  balanceAfterMinor BigInt
+  postedAt          DateTime          @default(now())
+
+  @@index([accountId, postedAt])
+  @@map("ledger_entries")
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  number        String        @unique
+  issuerId      String
+  issuer        User          @relation(fields: [issuerId], references: [id])
+  customerName  String
+  customerEmail String
+  currency      Currency
+  status        InvoiceStatus @default(DRAFT)
+  issuedAt      DateTime      @default(now())
+  dueAt         DateTime
+  paidAt        DateTime?
+  lines         InvoiceLine[]
+
+  @@index([issuerId, status])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id             String  @id @default(uuid())
+  invoiceId      String
+  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Int
+  unitPriceMinor BigInt
+
+  @@map("invoice_lines")
+}
+
+model Card {
+  id                  String     @id @default(uuid())
+  accountId           String
+  account             Account    @relation(fields: [accountId], references: [id])
+  type                CardType
+  status              CardStatus @default(INACTIVE)
+  brand               String
+  last4               String
+  expMonth            Int
+  expYear             Int
+  monthlyLimitMinor   BigInt
+  spentThisMonthMinor BigInt     @default(0)
+  createdAt           DateTime   @default(now())
+
+  @@index([accountId])
+  @@map("cards")
+}
+
+model FraudCheck {
+  id          String      @id @default(uuid())
+  transferId  String      @unique
+  transfer    Transfer    @relation(fields: [transferId], references: [id])
+  score       Decimal     @db.Decimal(5, 4)
+  action      FraudAction
+  signals     Json
+  evaluatedAt DateTime    @default(now())
+
+  @@map("fraud_checks")
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id])
+  channel   NotificationChannel
+  template  String
+  payload   Json
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  prefix     String    @unique
+  hash       String
+  label      String    @default("")
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@map("api_keys")
+}

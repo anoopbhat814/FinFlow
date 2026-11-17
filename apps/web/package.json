@@ -1,0 +1,20 @@
+{
+  "name": "@finflow/web",
+  "version": "0.4.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "test": "tsx --test src/lib/format.test.ts"
+  },
+  "dependencies": {
+    "@finflow/money": "*",
+    "@finflow/types": "*",
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": { "@types/react": "^18.3.0", "@types/node": "^20.11.0" }
+}

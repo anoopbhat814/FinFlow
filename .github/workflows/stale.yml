@@ -1,0 +1,19 @@
+name: Stale issues
+on:
+  schedule:
+    - cron: '30 4 * * *'
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 45
+          days-before-close: 14
+          stale-issue-label: stale
+          exempt-issue-labels: security,pinned
+          stale-issue-message: This issue has been quiet for 45 days and will be closed in two weeks unless there is new activity.

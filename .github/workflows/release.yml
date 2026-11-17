@@ -1,0 +1,43 @@
+name: Release
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: web, file: deploy/Dockerfile.web, context: . }
+          - { name: worker, file: deploy/Dockerfile.worker, context: . }
+          - { name: ledger, file: services/ledger/Dockerfile, context: services/ledger }
+          - { name: fraud, file: services/fraud/Dockerfile, context: services/fraud }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: |
+            ghcr.io/finflow/${{ matrix.name }}:${{ github.ref_name }}
+            ghcr.io/finflow/${{ matrix.name }}:latest
+  github-release:
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger
+  labels: { app: ledger }
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: ledger }
+  template:
+    metadata:
+      labels: { app: ledger }
+    spec:
+      containers:
+        - name: ledger
+          image: ghcr.io/finflow/ledger:latest
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - secretRef: { name: ledger-secrets }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 200m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ledger
+spec:
+  selector: { app: ledger }
+  ports: [{ port: 80, targetPort: 8080 }]

@@ -1,0 +1,6 @@
+*                     @finflow/maintainers
+/apps/web/            @finflow/web
+/services/ledger/     @finflow/payments
+/services/fraud/      @finflow/risk
+/prisma/              @finflow/payments
+/deploy/              @finflow/platform

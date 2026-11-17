@@ -1,0 +1,31 @@
+name: Bug report
+description: Something is not working as expected
+labels: [bug, triage]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [web, worker, ledger, fraud, prisma, deploy, docs]
+    validations: { required: true }
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include what you expected to happen instead.
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Sign in\n2. Open Transfers\n3. ..."
+  - type: input
+    id: version
+    attributes:
+      label: FinFlow version
+      placeholder: 0.4.0
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: shell

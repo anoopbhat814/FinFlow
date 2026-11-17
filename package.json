@@ -1,0 +1,22 @@
+{
+  "name": "finflow",
+  "private": true,
+  "version": "0.4.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "lint": "eslint . --ext .js,.ts,.tsx",
+    "test": "npm test --workspaces --if-present",
+    "check-env": "node scripts/check-env.js",
+    "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "prisma": { "seed": "tsx prisma/seed.ts" },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "prisma": "^5.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "@finflow/money",
+  "version": "0.4.0",
+  "main": "src/index.ts",
+  "scripts": { "test": "tsx --test src/money.test.ts" }
+}

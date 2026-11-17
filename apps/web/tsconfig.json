@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "lib": ["dom", "dom.iterable", "es2022"],
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./src/*"], "@finflow/types": ["../../packages/types/src"], "@finflow/money": ["../../packages/money/src"] }
+  },
+  "include": ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx"]
+}

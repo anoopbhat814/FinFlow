@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: finflow
+      POSTGRES_PASSWORD: finflow
+      POSTGRES_DB: finflow
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  ledger:
+    build: ../services/ledger
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql://finflow:finflow@postgres:5432/finflow
+      FRAUD_SERVICE_URL: http://fraud:8000
+    depends_on: [postgres, fraud]
+    ports: ["8080:8080"]
+  fraud:
+    build: ../services/fraud
+    ports: ["8000:8000"]
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    environment:
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailhog
+    depends_on: [redis, mailhog]
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    ports: ["3000:3000"]
+  mailhog:
+    image: mailhog/mailhog
+    ports: ["8025:8025"]
+volumes:
+  pgdata:
