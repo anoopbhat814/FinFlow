@@ -49,17 +49,35 @@ func main() {
 	transfers := service.NewTransferService(accounts, ledger, fraud)
 	statements := service.NewLedgerService(accounts, ledger)
 
+	audit := service.NewAuditService(repository.NewAuditRepo(pool), log)
+	refunds := service.NewRefundService(repository.NewRefundRepo(pool), accounts, audit)
+	cardRepo := repository.NewCardRepo(pool)
+	cards := service.NewCardService(cardRepo, audit)
+	invoices := service.NewInvoiceService(repository.NewInvoiceRepo(pool))
+	monthly := service.NewStatementService(accounts, repository.NewStatementRepo(pool))
+	webhookRepo := repository.NewWebhookRepo(pool)
+	dispatcher := service.NewWebhookService(webhookRepo, webhookRepo.GetEndpoint)
+	go runWebhookDispatcher(ctx, log, dispatcher)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", handlers.Health(pool))
 	handlers.NewAccountHandler(accounts, statements).Register(mux)
 	handlers.NewTransferHandler(transfers, idempotency.NewStore(24*time.Hour)).Register(mux)
+	handlers.NewRefundHandler(refunds).Register(mux)
+	handlers.NewCardHandler(cardRepo, cards).Register(mux)
+	handlers.NewInvoiceHandler(invoices).Register(mux)
+	handlers.NewStatementHandler(monthly).Register(mux)
+	handlers.NewWebhookHandler(webhookRepo).Register(mux)
 
 	var h http.Handler = mux
 	for _, mw := range []func(http.Handler) http.Handler{
+		middleware.Audit(audit),
+		middleware.MaxBody(1 << 20),
 		middleware.RateLimit(cfg.RateLimitRPS),
 		middleware.Auth(cfg.JWTSecret),
 		middleware.Logging(log),
 		middleware.Recovery(log),
+		middleware.RequestID,
 	} {
 		h = mw(h)
 	}
@@ -76,5 +94,24 @@ func main() {
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		log.Error("server", "err", err)
 		os.Exit(1)
+	}
+}
+
+// runWebhookDispatcher drains due webhook deliveries until ctx is cancelled.
+func runWebhookDispatcher(ctx context.Context, log *slog.Logger, svc *service.WebhookService) {
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			n, err := svc.DeliverDue(ctx, 50)
+			if err != nil {
+				log.Error("webhook dispatch", "err", err)
+			} else if n > 0 {
+				log.Info("webhooks delivered", "count", n)
+			}
+		}
 	}
 }

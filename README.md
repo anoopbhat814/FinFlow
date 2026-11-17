@@ -20,6 +20,8 @@
 
 Moving money correctly is harder than moving data. Transfers must be exactly-once under client retries, balances must never drift from the books, and risky payments must be caught before funds leave an account, all without making legitimate customers wait.
 
+Go is the primary backend: the ledger service owns the money-movement API, while a Next.js frontend, a Python fraud service and a Node worker support it.
+
 FinFlow is a payments platform that addresses these problems directly. It provides multi-currency accounts, transfers, invoicing and cards backed by a **double-entry ledger** whose invariants are enforced in code and in the database. Every transfer is scored by a dedicated **fraud service** before it posts, and customer notifications and webhooks are delivered asynchronously by a **worker**.
 
 ## Key features
@@ -222,6 +224,16 @@ The schema lives in [`prisma/schema.prisma`](prisma/schema.prisma) and is migrat
 | `Card` | Virtual or physical card with a monthly spend limit |
 | `Notification` | Notification record per channel (email, SMS, push, webhook) |
 | `ApiKey` | Hashed API keys with prefix, revocation and last-used tracking |
+| `Statement` | Monthly account statement with opening/closing balance and debit/credit totals |
+| `Beneficiary` | Saved payee (IBAN, BIC) with a verification status |
+| `Budget`, `BudgetLine` | Per-user spending budgets split into category limits |
+| `Dispute`, `DisputeEvidence` | Transfer disputes with reason, status workflow and uploaded evidence |
+| `Refund` | Full or partial refund of a completed transfer |
+| `WebhookEndpoint`, `WebhookDelivery` | Customer webhook subscriptions and their signed, retried deliveries |
+| `AuditLog` | Append-only record of actions by users and the system |
+| `KycDocument` | Identity documents with review status and expiry |
+| `ExchangeRate` | Time-stamped currency pair rates |
+| `CardAuthorization` | Approved and declined card purchase attempts |
 
 ## Testing
 
@@ -259,7 +271,7 @@ To report a vulnerability, follow [SECURITY.md](SECURITY.md). Please do not open
 
 ## Roadmap
 
-- Invoice and card endpoints on the ledger API (data model and dashboard views are in place)
+- Invoice creation and card issuing on the ledger API (read, pay, freeze and authorization endpoints exist)
 - SMS and push notification channels (modeled in the schema)
 - Transfer reversal workflow
 - Published OpenAPI specification (generator in `scripts/generate-openapi.js`)

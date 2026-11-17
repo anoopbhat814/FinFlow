@@ -44,6 +44,46 @@ async function main() {
     },
   });
 
+  await prisma.beneficiary.upsert({
+    where: { userId_iban: { userId: alice.id, iban: 'DE89370400440532013000' } },
+    update: {},
+    create: { userId: alice.id, name: 'Bob Example', iban: 'DE89370400440532013000', bic: 'COBADEFFXXX', currency: Currency.EUR, status: 'VERIFIED', verifiedAt: new Date() },
+  });
+
+  await prisma.budget.create({
+    data: {
+      userId: alice.id,
+      name: 'Household',
+      period: 'MONTHLY',
+      currency: Currency.USD,
+      startsAt: new Date(Date.UTC(2025, 0, 1)),
+      lines: { create: [
+        { category: 'groceries', limitMinor: 60_000n, spentMinor: 18_450n },
+        { category: 'transport', limitMinor: 15_000n },
+      ] },
+    },
+  });
+
+  await prisma.exchangeRate.createMany({
+    data: [
+      { base: Currency.USD, quote: Currency.EUR, rate: '0.92140000', observedAt: new Date(Date.UTC(2025, 0, 1)) },
+      { base: Currency.EUR, quote: Currency.USD, rate: '1.08530000', observedAt: new Date(Date.UTC(2025, 0, 1)) },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.webhookEndpoint.create({
+    data: { userId: alice.id, url: 'https://hooks.example.com/finflow', secret: sha('whsec-demo-only'), events: ['transfer.completed', 'refund.succeeded'] },
+  });
+
+  await prisma.kycDocument.create({
+    data: { userId: alice.id, type: 'PASSPORT', status: 'APPROVED', storageKey: 'kyc/demo/alice-passport.enc', reviewedAt: new Date() },
+  });
+
+  await prisma.auditLog.create({
+    data: { actorId: alice.id, action: 'seed.bootstrap', entityType: 'account', entityId: checking.id, metadata: { source: 'prisma/seed.ts' } },
+  });
+
   console.log(`Seeded users ${alice.email}, ${bob.email}; accounts ${checking.id}, ${euro.id}`);
 }
 

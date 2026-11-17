@@ -74,6 +74,74 @@ enum NotificationChannel {
   WEBHOOK
 }
 
+enum StatementStatus {
+  OPEN
+  CLOSED
+  DELIVERED
+}
+
+enum BeneficiaryStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  BLOCKED
+}
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum DisputeStatus {
+  OPEN
+  EVIDENCE_REQUIRED
+  UNDER_REVIEW
+  WON
+  LOST
+  WITHDRAWN
+}
+
+enum DisputeReason {
+  UNAUTHORIZED
+  DUPLICATE
+  NOT_RECEIVED
+  INCORRECT_AMOUNT
+  OTHER
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum KycDocumentType {
+  PASSPORT
+  DRIVING_LICENSE
+  NATIONAL_ID
+  PROOF_OF_ADDRESS
+}
+
+enum KycStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+enum AuthorizationStatus {
+  APPROVED
+  DECLINED
+  CAPTURED
+  REVERSED
+}
+
 model User {
   id            String         @id @default(uuid())
   email         String         @unique
@@ -85,6 +153,12 @@ model User {
   invoices      Invoice[]
   notifications Notification[]
   apiKeys       ApiKey[]
+  beneficiaries Beneficiary[]
+  budgets       Budget[]
+  disputes      Dispute[]
+  webhooks      WebhookEndpoint[]
+  kycDocuments  KycDocument[]
+  auditLogs     AuditLog[]
 
   @@map("users")
 }
@@ -108,6 +182,7 @@ model Account {
   incoming Transfer[]    @relation("TransferDestination")
   entries  LedgerEntry[]
   cards    Card[]
+  statements Statement[]
 
   @@index([ownerId])
   @@map("accounts")
@@ -127,6 +202,8 @@ model Transfer {
   createdAt            DateTime       @default(now())
   completedAt          DateTime?
   fraudCheck           FraudCheck?
+  refunds              Refund[]
+  disputes             Dispute[]
 
   @@index([sourceAccountId, createdAt])
   @@map("transfers")
@@ -200,6 +277,7 @@ model Card {
   monthlyLimitMinor   BigInt
   spentThisMonthMinor BigInt     @default(0)
   createdAt           DateTime   @default(now())
+  authorizations      CardAuthorization[]
 
   @@index([accountId])
   @@map("cards")
@@ -243,4 +321,204 @@ model ApiKey {
   createdAt  DateTime  @default(now())
 
   @@map("api_keys")
+}
+
+model Statement {
+  id                  String          @id @default(uuid())
+  accountId           String
+  account             Account         @relation(fields: [accountId], references: [id])
+  periodStart         DateTime
+  periodEnd           DateTime
+  openingBalanceMinor BigInt
+  closingBalanceMinor BigInt
+  totalDebitsMinor    BigInt          @default(0)
+  totalCreditsMinor   BigInt          @default(0)
+  status              StatementStatus @default(OPEN)
+  documentUrl         String?
+  generatedAt         DateTime        @default(now())
+
+  @@unique([accountId, periodStart, periodEnd])
+  @@index([accountId, periodEnd])
+  @@map("statements")
+}
+
+model Beneficiary {
+  id          String            @id @default(uuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  name        String
+  iban        String
+  bic         String?
+  currency    Currency
+  status      BeneficiaryStatus @default(PENDING_VERIFICATION)
+  verifiedAt  DateTime?
+  createdAt   DateTime          @default(now())
+
+  @@unique([userId, iban])
+  @@map("beneficiaries")
+}
+
+model Budget {
+  id          String       @id @default(uuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  name        String
+  period      BudgetPeriod @default(MONTHLY)
+  currency    Currency
+  startsAt    DateTime
+  archivedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  lines       BudgetLine[]
+
+  @@index([userId, period])
+  @@map("budgets")
+}
+
+model BudgetLine {
+  id          String @id @default(uuid())
+  budgetId    String
+  budget      Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category    String
+  limitMinor  BigInt
+  spentMinor  BigInt @default(0)
+
+  @@unique([budgetId, category])
+  @@map("budget_lines")
+}
+
+model Dispute {
+  id         String            @id @default(uuid())
+  transferId String
+  transfer   Transfer          @relation(fields: [transferId], references: [id])
+  openedById String
+  openedBy   User              @relation(fields: [openedById], references: [id])
+  reason     DisputeReason
+  status     DisputeStatus     @default(OPEN)
+  details    String            @default("")
+  openedAt   DateTime          @default(now())
+  resolvedAt DateTime?
+  evidence   DisputeEvidence[]
+
+  @@index([transferId])
+  @@index([openedById, status])
+  @@map("disputes")
+}
+
+model DisputeEvidence {
+  id          String   @id @default(uuid())
+  disputeId   String
+  dispute     Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  description String
+  fileUrl     String
+  uploadedAt  DateTime @default(now())
+
+  @@index([disputeId])
+  @@map("dispute_evidence")
+}
+
+model Refund {
+  id          String       @id @default(uuid())
+  transferId  String
+  transfer    Transfer     @relation(fields: [transferId], references: [id])
+  amountMinor BigInt
+  currency    Currency
+  reason      String       @default("")
+  status      RefundStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  settledAt   DateTime?
+
+  @@index([transferId])
+  @@map("refunds")
+}
+
+model WebhookEndpoint {
+  id         String            @id @default(uuid())
+  userId     String
+  user       User              @relation(fields: [userId], references: [id])
+  url        String
+  secret     String
+  events     String[]
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id            String                @id @default(uuid())
+  endpointId    String
+  endpoint      WebhookEndpoint       @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event         String
+  payload       Json
+  status        WebhookDeliveryStatus @default(PENDING)
+  attempts      Int                   @default(0)
+  responseCode  Int?
+  nextAttemptAt DateTime?
+  createdAt     DateTime              @default(now())
+
+  @@index([endpointId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("webhook_deliveries")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json     @default("{}")
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
+
+model KycDocument {
+  id         String          @id @default(uuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id])
+  type       KycDocumentType
+  status     KycStatus       @default(SUBMITTED)
+  storageKey String
+  expiresAt  DateTime?
+  reviewedAt DateTime?
+  createdAt  DateTime        @default(now())
+
+  @@index([userId, status])
+  @@map("kyc_documents")
+}
+
+model ExchangeRate {
+  id         String   @id @default(uuid())
+  base       Currency
+  quote      Currency
+  rate       Decimal  @db.Decimal(18, 8)
+  source     String   @default("ecb")
+  observedAt DateTime
+
+  @@unique([base, quote, observedAt])
+  @@index([base, quote, observedAt])
+  @@map("exchange_rates")
+}
+
+model CardAuthorization {
+  id           String              @id @default(uuid())
+  cardId       String
+  card         Card                @relation(fields: [cardId], references: [id])
+  merchant     String
+  mcc          String
+  amountMinor  BigInt
+  currency     Currency
+  status       AuthorizationStatus @default(APPROVED)
+  declineCode  String?
+  createdAt    DateTime            @default(now())
+
+  @@index([cardId, createdAt])
+  @@map("card_authorizations")
 }
