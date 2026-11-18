@@ -16,7 +16,7 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/setup-kubectl@v4
+      - uses: azure/setup-kubectl@v5
       - name: Configure kubeconfig
         run: echo "${{ secrets.STAGING_KUBECONFIG }}" | base64 -d > "$HOME/.kube-config"
       - name: Apply manifests
